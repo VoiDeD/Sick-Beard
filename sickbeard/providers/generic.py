@@ -177,7 +177,7 @@ class GenericProvider:
 
         return self.cache.findNeededEpisodes()
 
-    def getQuality(self, item):
+    def getQuality(self, title):
         """
         Figures out the quality of the given RSS item node
 
@@ -186,7 +186,6 @@ class GenericProvider:
         Returns a Quality value obtained from the node's data
 
         """
-        (title, url) = self._get_title_and_url(item)  # @UnusedVariable
         quality = Quality.nameQuality(title)
         return quality
 
@@ -217,6 +216,9 @@ class GenericProvider:
 
         return (title, url)
 
+    def _get_backup_title(self, item):
+        return ''
+
     def findEpisode(self, episode, manualSearch=False):
 
         logger.log(u"Searching " + self.name + " for " + episode.prettyName())
@@ -239,37 +241,28 @@ class GenericProvider:
         for item in itemList:
 
             (title, url) = self._get_title_and_url(item)
+            backupTitle = self._get_backup_title(item)
 
-            # parse the file name
-            try:
-                myParser = NameParser()
-                parse_result = myParser.parse(title)
-            except InvalidNameException:
-                logger.log(u"Unable to parse the filename " + title + " into a valid episode", logger.WARNING)
-                continue
+            if not self._is_wanted_episode(episode, item, title, manualSearch):
 
-            if episode.show.air_by_date:
-                if parse_result.air_date != episode.airdate:
+                if not backupTitle:
+                    continue # no useful backup title
 
-                    logger.log(u"Episode " + title + " didn't air on " + str(episode.airdate) + ", skipping it", logger.DEBUG)
+                title = backupTitle
+
+                # if the release title wasn't parsed sucessfully, lets try the backup title
+                logger.log(u"Checking against backup title " + title)
+
+                if not self._is_wanted_episode(episode, item, title, manualSearch):
+                    # oh well...
                     continue
-
-            elif parse_result.season_number != episode.season or episode.episode not in parse_result.episode_numbers:
-                logger.log(u"Episode " + title + " isn't " + str(episode.season) + "x" + str(episode.episode) + ", skipping it", logger.DEBUG)
-                continue
-
-            quality = self.getQuality(item)
-
-            if not episode.show.wantEpisode(episode.season, episode.episode, quality, manualSearch):
-                logger.log(u"Ignoring result " + title + " because we don't want an episode that is " + Quality.qualityStrings[quality], logger.DEBUG)
-                continue
 
             logger.log(u"Found result " + title + " at " + url, logger.DEBUG)
 
             result = self.getResult([episode])
             result.url = url
             result.name = title
-            result.quality = quality
+            result.quality = self.getQuality(title)
 
             results.append(result)
 
@@ -287,7 +280,7 @@ class GenericProvider:
 
             (title, url) = self._get_title_and_url(item)
 
-            quality = self.getQuality(item)
+            quality = self.getQuality(title)
 
             # parse the file name
             try:
@@ -367,6 +360,34 @@ class GenericProvider:
         results = self.cache.listPropers(search_date)
 
         return [classes.Proper(x['name'], x['url'], datetime.datetime.fromtimestamp(x['time'])) for x in results]
+
+    def _is_wanted_episode(self, episode, item, title, manualSearch):
+
+        # parse the file name
+        try:
+            myParser = NameParser()
+            parse_result = myParser.parse(title)
+        except InvalidNameException:
+            logger.log(u"Unable to parse the filename " + title + " into a valid episode", logger.WARNING)
+            return False
+
+        if episode.show.air_by_date:
+            if parse_result.air_date != episode.airdate:
+
+                logger.log(u"Episode " + title + " didn't air on " + str(episode.airdate) + ", skipping it", logger.DEBUG)
+                return False
+
+        elif parse_result.season_number != episode.season or episode.episode not in parse_result.episode_numbers:
+            logger.log(u"Episode " + title + " isn't " + str(episode.season) + "x" + str(episode.episode) + ", skipping it", logger.DEBUG)
+            return False
+
+        quality = self.getQuality(title)
+
+        if not episode.show.wantEpisode(episode.season, episode.episode, quality, manualSearch):
+            logger.log(u"Ignoring result " + title + " because we don't want an episode that is " + Quality.qualityStrings[quality], logger.DEBUG)
+            return False
+
+        return True
 
 
 class NZBProvider(GenericProvider):
