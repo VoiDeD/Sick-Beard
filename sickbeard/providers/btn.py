@@ -166,20 +166,7 @@ class BTNProvider(generic.TorrentProvider):
             title = parsedJSON['ReleaseName']
 
         else:
-            # If we don't have a release name we need to get creative
-            title = u''
-            if 'Series' in parsedJSON:
-                title += parsedJSON['Series']
-            if 'GroupName' in parsedJSON:
-                title += '.' + parsedJSON['GroupName'] if title else parsedJSON['GroupName']
-            if 'Resolution' in parsedJSON:
-                title += '.' + parsedJSON['Resolution'] if title else parsedJSON['Resolution']
-            if 'Source' in parsedJSON:
-                title += '.' + parsedJSON['Source'] if title else parsedJSON['Source']
-            if 'Codec' in parsedJSON:
-                title += '.' + parsedJSON['Codec'] if title else parsedJSON['Codec']
-            if title:
-                title = title.replace(' ', '.')
+            title = self._get_backup_title(parsedJSON)
 
         url = None
         if 'DownloadURL' in parsedJSON:
@@ -189,6 +176,32 @@ class BTNProvider(generic.TorrentProvider):
                 url = url.replace("\\/", "/")
 
         return (title, url)
+
+    def _get_backup_title(self, parsedJSON):
+        # If we don't have a release name we need to get creative
+
+        title = u''
+
+        if 'Series' in parsedJSON:
+            title += parsedJSON['Series']
+        if 'GroupName' in parsedJSON:
+            title += '.' + parsedJSON['GroupName'] if title else parsedJSON['GroupName']
+        if 'Resolution' in parsedJSON:
+            title += '.' + parsedJSON['Resolution'] if title else parsedJSON['Resolution']
+        if 'Source' in parsedJSON:
+            title += '.' + parsedJSON['Source'] if title else parsedJSON['Source']
+        if 'Codec' in parsedJSON:
+            # should not include the period in the video codec
+            codec = parsedJSON['Codec'].replace('.', '')
+            title += '.' + codec if title else codec
+        if 'Origin' in parsedJSON:
+            # need to include some sort of scene/p2p release group name
+            title += '-' + parsedJSON['Origin'] if title else parsedJSON['Origin']
+
+        if title:
+            title = title.replace(' ', '.')
+
+        return title
 
     def _get_season_search_strings(self, show, season=None):
         if not show:
