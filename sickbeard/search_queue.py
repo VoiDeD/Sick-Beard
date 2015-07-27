@@ -101,6 +101,9 @@ class ManualSearchQueueItem(generic_queue.QueueItem):
 
         else:
 
+            # temporary hack because openssl is garbage
+            foundEpisode.url = foundEpisode.url.replace("https://", "http://")
+
             # just use the first result for now
             logger.log(u"Downloading episode from " + foundEpisode.url)
             result = search.snatchEpisode(foundEpisode)
